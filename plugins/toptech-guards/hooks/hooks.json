@@ -1,0 +1,50 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/session_start.py",
+            "args": [],
+            "timeout": 10,
+            "statusMessage": "الدستور وسطر الحالة"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/guard_bash.py",
+            "args": [],
+            "timeout": 40,
+            "statusMessage": "فحص الأمر"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/guard_write.py",
+            "args": [],
+            "timeout": 10,
+            "statusMessage": "فحص الأسرار"
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/scripts/remind_docs.py",
+            "args": [],
+            "timeout": 10,
+            "statusMessage": "الوثيقة الحاكمة"
+          }
+        ]
+      }
+    ]
+  }
+}

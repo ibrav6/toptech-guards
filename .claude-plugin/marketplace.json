@@ -1,0 +1,25 @@
+{
+  "$schema": "https://code.claude.com/schemas/marketplace.json",
+  "name": "toptech",
+  "owner": {
+    "name": "قمم التقنية — قسم التطوير"
+  },
+  "description": "حرّاس ومعايير التطوير المشتركة لمشاريع مجموعة قمم التقنية",
+  "version": "1.0.0",
+  "plugins": [
+    {
+      "name": "toptech-guards",
+      "source": "./plugins/toptech-guards",
+      "displayName": "حرّاس قمم التقنية",
+      "description": "hooks تمنع ما وقع فعلاً: دهس الإنتاج، تسريب الأسرار، الحذف المدمّر — وتذكّر بالوثيقة قبل الكود",
+      "version": "1.2.0",
+      "category": "safety",
+      "keywords": [
+        "guards",
+        "hooks",
+        "safety",
+        "toptech"
+      ]
+    }
+  ]
+}
