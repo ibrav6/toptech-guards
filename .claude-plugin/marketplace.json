@@ -12,7 +12,7 @@
       "source": "./plugins/toptech-guards",
       "displayName": "حرّاس قمم التقنية",
       "description": "hooks تمنع ما وقع فعلاً: دهس الإنتاج، تسريب الأسرار، الحذف المدمّر — وتذكّر بالوثيقة قبل الكود",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "category": "safety",
       "keywords": [
         "guards",

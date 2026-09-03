@@ -1,7 +1,7 @@
 {
   "name": "toptech-guards",
   "displayName": "حرّاس قمم التقنية",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "الدستور يصلك عند بدء الجلسة، والحرّاس يفرضونه: master محميّ، والدمج بشروطه، ووسم production للـworkflow وحده، ولا سرّ في ملف",
   "author": {
     "name": "قسم التطوير — قمم التقنية"

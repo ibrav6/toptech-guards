@@ -56,6 +56,38 @@ DEST_LAST = ("scp", "rsync", "sftp", "cp", "mv", "install")
 ARGS_ARE_TARGETS = ("rm", "chmod", "chown", "truncate", "tee", "dd", "sed")
 
 
+HEREDOC_BODY = r"<<-?\s*[\'\"]?(\w+)[\'\"]?\n.*?\n\1\b"
+CLAUSE_SEP = r"[;&|]{1,2}|\n"
+
+
+def _strip_heredocs(cmd: str) -> str:
+    """ينزع **أجساد** الـheredoc — نصٌّ يُغذّى لأمرٍ، لا أمرٌ يُنفَّذ.
+
+    ‼ قِيس 2026-09-03 (سادس كاذبة): رسالةُ التزامٍ مرّت بعلم الملف عبر
+      heredoc وفيها اسمُ الفرع الرئيس عشر مرّات، فمنعها حارسُ الفرع
+      المشترك. و`_strip_messages` لا تراها لأنها تنزع علم الرسالة وحده.
+      ثم منع الحارسُ **سكربتَ إصلاحه نفسه** لأن نصّه يحوي أنماطه.
+
+    ⚠ **ولا تُنادى إلا من فحصَي الدفع.** جُرّبت عالميةً 2026-09-03
+      فأعمت حارسَ الأسرار: كلمةُ قاعدةٍ تُكتب داخل heredoc صارت غير
+      مرئيّة. والفرق أن نصّ الرسالة **يُغذّى ولا يُنفَّذ**، أما ما
+      يُغذّى لأداةِ كتابةٍ فمحتوىً يستقرّ على القرص ويجب أن يُفحص.
+      ⇒ علاجُ كاذبةٍ لا يُشترى بثغرة.
+    """
+    return re.sub(HEREDOC_BODY, "<<STRIPPED", cmd, flags=re.S)
+
+
+def _clauses(cmd: str) -> list[str]:
+    """يشظّي الأمر المركّب إلى شقوقٍ تُفحص كلٌّ على حدة.
+
+    ‼ **وهذا علاج عائلة الكاذبات كلّها** — ستٌّ في يومين. كان كلُّ فحصٍ
+      يسأل «أيرد النمط في الأمر؟» والسؤال الصحيح «أيرد في الشقّ الذي
+      يفعل الفعل؟». علمُ حذفٍ في شطرٍ منع دفعاً في شطرٍ آخر، وانتقالٌ
+      إلى مسار إنتاجٍ منع نسخاً إلى مجلدٍ مؤقّت.
+    """
+    return re.split(CLAUSE_SEP, cmd)
+
+
 def _strip_messages(cmd: str) -> str:
     """ينزع نصوص رسائل الالتزام قبل الفحص — **نصٌّ لا يُنفَّذ**.
 
@@ -167,8 +199,13 @@ def main() -> None:
                  "والفحص الذي كُتب ليمنعها هو الذي نفّذها.")
 
     # ‼ ٤) دفعٌ قسري إلى الفرع المشترك
-    if re.search(r"git\s+push\b", cmd) and re.search(r"(--force(?!-with-lease)|(?<![\w-])-f(?![\w-]))", cmd):
-        if re.search(r"\b(master|main)\b", cmd) or "origin" in cmd:
+    # ‼ **على شقّه وحده** — قِيس 2026-09-03: علمُ حذفٍ من أمرٍ في
+    #     الشطر السابق منع دفعاً سليماً، وأصاب جلستين في يوم.
+    for part in _clauses(_strip_heredocs(cmd)):
+        if not re.search(r"git\s+push\b", part):
+            continue
+        if re.search(r"(--force(?!-with-lease)|(?<![\w-])-f(?![\w-]))", part) and (
+                re.search(r"\b(master|main)\b", part) or "origin" in part):
             deny("⛔ `git push --force` على فرعٍ مشترك يمحو عمل غيرك.\n"
                  "استعمل `--force-with-lease` — يرفض الدفع إن تقدّم البعيد.")
 
@@ -178,10 +215,12 @@ def main() -> None:
     #     واحدة، والبوابة خضراء عليها طوال الوقت. وقِيس 2026-08-30 ثلاثة
     #     التزاماتٍ حمراء دخلت master وأحدها منشور.
     if os.environ.get("TOPTECH_PROTECT_MASTER", "1") != "0":
-        if re.search(r"git\s+push\b", cmd):
-            explicit = re.search(r"\b(master|main)\b", cmd)
+        for part in _clauses(_strip_heredocs(cmd)):
+            if not re.search(r"git\s+push\b", part):
+                continue
+            explicit = re.search(r"\b(master|main)\b", part)
             # `git push` بلا فرعٍ مسمّى يدفع الفرع الحالي — فيُسأل git.
-            implicit = (not re.search(r"\brefs/|\borigin\s+\S+", cmd)
+            implicit = (not re.search(r"\brefs/|\borigin\s+\S+", part)
                         and _current_branch(data.get("cwd")) in ("master", "main"))
             if explicit or implicit:
                 deny("⛔ الدفع المباشر إلى master مرفوض. افتح فرعاً وPR:\n"

@@ -33,6 +33,8 @@ with open(os.path.join(PROJECT, ".claude", "toptech-guards.json"), "w", encoding
 BARE = tempfile.mkdtemp(prefix="toptech-guards-bare-")     # مشروعٌ بلا إعداد
 
 # (الوصف، السكربت، المدخل، أيُمنع؟)
+from cases_clauses import CLAUSE_CASES  # noqa: E402
+
 CASES = [
     # ── دهس الإنتاج ──────────────────────────────────────────────
     ("نسخٌ مباشر إلى مسار الإنتاج", "guard_bash.py",
@@ -163,7 +165,7 @@ CASES = [
                      "content": "  - POSTGRES_PASSWORD=${DB_PASSWORD}\n"}}, False),
     ("نصٌّ عادي — يمرّ", "guard_write.py",
      {"tool_input": {"file_path": "README.md", "content": "# عنوان\nسطرٌ عربي.\n"}}, False),
-]
+] + CLAUSE_CASES
 
 
 def run(script: str, payload: dict, env: dict | None = None) -> str:
