@@ -182,8 +182,44 @@ def run(script: str, payload: dict, env: dict | None = None) -> str:
     return p.stdout.strip()
 
 
+def check_executable() -> int:
+    """كل سكربتٍ في `scripts/` يُنادى **مباشرةً** من `hooks.json`، فيحتاج
+    shebang وبتَ تنفيذٍ في الشجرة **وفي فهرس git** — فالفهرس هو ما يصل
+    المطوّرين، والشجرة وحدها تُصلَح بـ`chmod` وتُدهس عند التحديث.
+
+    ‼ قِيس 2026-09-04: `session_start.py` بوضع 100644 فسقط SessionStart
+      بـ`EACCES: permission denied, posix_spawn` ولم يُحقن الدستور — وCI
+      أخضر لأنه كان يشغّله بـ`python3` لا كما يشغّله كلود.
+    """
+    fail = 0
+    try:
+        p = subprocess.run(["git", "-C", HERE, "ls-files", "-s", "--", S],
+                           capture_output=True, text=True, timeout=10)
+        modes = {os.path.basename(ln.split("\t", 1)[1]): ln.split()[0]
+                 for ln in p.stdout.splitlines() if "\t" in ln} if p.returncode == 0 else {}
+    except Exception:                                  # noqa: BLE001 — بلا git يبقى فحص الشجرة
+        modes = {}
+    for name in sorted(os.listdir(S)):
+        if not name.endswith(".py"):
+            continue
+        path = os.path.join(S, name)
+        problems = []
+        with open(path, "rb") as fh:
+            if not fh.read(2) == b"#!":
+                problems.append("بلا shebang")
+        if not os.access(path, os.X_OK):
+            problems.append("بلا بت تنفيذ في الشجرة")
+        if name in modes and modes[name] != "100755":
+            problems.append(f"وضع git {modes[name]} لا 100755")
+        mark = "✘" if problems else "✔"
+        print(f"  {mark} تنفيذ  scripts/{name}" + (" — " + "، ".join(problems) if problems else ""))
+        fail += bool(problems)
+    return fail
+
+
 def main() -> int:
     blocked = passed = fail = 0
+    fail += check_executable()
     for case in CASES:
         desc, script, payload, want_deny = case[:4]
         env = case[4] if len(case) > 4 else None
