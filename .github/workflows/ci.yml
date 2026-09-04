@@ -25,10 +25,12 @@ jobs:
               json.load(open(f, encoding="utf-8"))
           print("json ok")
           EOF
+      # ‼ يُشغَّل مباشرةً كما يشغّله كلود، لا عبر `python3` — قِيس 2026-09-04:
+      #   الملف بلا بت تنفيذ سقط عند بدء الجلسة بـEACCES وهذه الخطوة خضراء.
       - name: سطر الحالة يعمل على مستودعٍ حقيقي
         run: |
           echo '{"cwd":"'"$PWD"'","source":"startup"}' \
-            | python3 plugins/toptech-guards/scripts/session_start.py \
+            | plugins/toptech-guards/scripts/session_start.py \
             | python3 -c 'import json,sys; d=json.load(sys.stdin); ctx=d["hookSpecificOutput"]["additionalContext"]; assert "دستور قسم التطوير" in ctx, ctx[-300:]; print("session_start ok")'
       - name: لا مسار إنتاجٍ ولا عنوان داخلي في مستودعٍ عامّ
         run: |
