@@ -45,6 +45,12 @@ jobs:
     container:
       image: mcr.microsoft.com/playwright:v1.63.0-noble
       options: --ipc=host
+    # ‼ `HOME` صراحةً: الحاوية تُشغَّل كـroot بينما `/github/home` يملكه
+    #   `pwuser` — وفايرفوكس يرفض الإقلاع حين لا يملك المستخدمُ منزلَه،
+    #   فسقطت 23 حالة فايرفوكس بينما مرّت 46 على كروم وويبكِت (قِيس في
+    #   الجولة 34448247946). عطلُ بيئةٍ لا عطبُ مكوّن.
+    env:
+      HOME: /root
     defaults:
       run:
         working-directory: design-system
