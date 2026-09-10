@@ -34,4 +34,41 @@ jobs:
             | python3 -c 'import json,sys; d=json.load(sys.stdin); ctx=d["hookSpecificOutput"]["additionalContext"]; assert "دستور قسم التطوير" in ctx, ctx[-300:]; print("session_start ok")'
       - name: لا مسار إنتاجٍ ولا عنوان داخلي في مستودعٍ عامّ
         run: |
-          ! grep -rnE '192\.168\.|/volume1/' plugins/ .claude-plugin/ README.md
+          ! grep -rnE '192\.168\.|/volume1/' plugins/ .claude-plugin/ design-system/src design-system/gallery design-system/*.md README.md
+
+  # نظام الهوية `@toptech/ui` — مصدرُ كل منتجات المجموعة، فبوابتُه هنا لا عند
+  # المستهلك: منتجٌ يفحص مكتبةً ثانيةً يجعل الترقية رهينةَ فحصه هو.
+  design-system:
+    runs-on: ubuntu-24.04
+    # ‼ الصورة نفسها التي تولّد الصور المرجعية — فرقُ الخطوط بين macOS
+    #   وLinux يُحمِّر المقارنة البصرية بلا عطبٍ في المكوّن.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      options: --ipc=host
+    # ‼ `HOME` صراحةً: الحاوية تُشغَّل كـroot بينما `/github/home` يملكه
+    #   `pwuser` — وفايرفوكس يرفض الإقلاع حين لا يملك المستخدمُ منزلَه،
+    #   فسقطت 23 حالة فايرفوكس بينما مرّت 46 على كروم وويبكِت (قِيس في
+    #   الجولة 34448247946). عطلُ بيئةٍ لا عطبُ مكوّن.
+    env:
+      HOME: /root
+    defaults:
+      run:
+        working-directory: design-system
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: design-system/package-lock.json
+      - run: npm ci
+      - run: npm run check:design
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: design-system-evidence
+          path: |
+            design-system/playwright-report/
+            design-system/test-results/
+            design-system/.lighthouseci/reports/
+          retention-days: 14

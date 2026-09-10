@@ -1,0 +1,43 @@
+/* العقد الجديد مستقل عن الموقع الحالي؛ يُنقل المنتج إليه بعد اعتماد المعاينة. */
+.tt-theme {
+  --tt-font: 'IBM Plex Sans Arabic', 'Segoe UI', Tahoma;
+  --background: 48 33% 97%; --foreground: 45 5% 16%;
+  --card: 0 0% 100%; --card-foreground: 45 5% 16%;
+  --popover: 0 0% 100%; --popover-foreground: 45 5% 16%;
+  --primary: 225 80% 49%; --primary-foreground: 0 0% 100%;
+  --secondary: 45 18% 92%; --secondary-foreground: 45 5% 16%;
+  --muted: 45 18% 94%; --muted-foreground: 45 5% 40%;
+  --accent: 224 100% 96%; --accent-foreground: 225 80% 35%;
+  --destructive: 0 72% 43%; --destructive-foreground: 0 0% 100%;
+  --border: 45 12% 85%; --input: 45 5% 53%; --ring: 225 80% 49%;
+  --tt-success: 154 75% 27%; --tt-success-surface: 150 42% 94%;
+  --tt-warning: 31 85% 29%; --tt-warning-surface: 43 100% 94%;
+  --tt-danger-surface: 0 85% 97%;
+  --tt-data-1: 225 80% 49%; --tt-data-2: 12 90% 56%; --tt-data-3: 173 65% 35%; --tt-data-4: 266 70% 55%;
+  --radius: .75rem;
+  --tt-space-1: .25rem; --tt-space-2: .5rem; --tt-space-3: .75rem; --tt-space-4: 1rem; --tt-space-6: 1.5rem; --tt-space-8: 2rem; --tt-space-12: 3rem;
+  --tt-shadow: 0 12px 36px -12px hsl(45 10% 15% / .2);
+  --tt-layer-overlay: 40; --tt-layer-dialog: 50; --tt-layer-popup: 60; --tt-layer-tooltip: 70;
+  --tt-duration: 160ms; --tt-rail: 15rem; --tt-rail-mini: 4.5rem;
+  font-family: var(--tt-font), sans-serif;
+  color: hsl(var(--foreground)); background: hsl(var(--background));
+  color-scheme: light; font-size: 1rem; line-height: 1.65; text-align: start;
+}
+.tt-theme[data-theme='dark'] {
+  --background: 60 3% 15%; --foreground: 43 30% 94%;
+  --card: 60 2% 19%; --card-foreground: 43 30% 94%;
+  --popover: 60 2% 19%; --popover-foreground: 43 30% 94%;
+  --primary: 223 100% 77%; --primary-foreground: 225 70% 15%;
+  --secondary: 48 4% 25%; --secondary-foreground: 43 30% 94%;
+  --muted: 48 4% 22%; --muted-foreground: 45 10% 72%;
+  --accent: 225 30% 26%; --accent-foreground: 223 100% 85%;
+  --destructive: 0 90% 78%; --destructive-foreground: 0 65% 16%;
+  --border: 48 4% 31%; --input: 45 5% 55%; --ring: 223 100% 77%;
+  --tt-success: 151 60% 72%; --tt-success-surface: 152 25% 20%;
+  --tt-warning: 42 95% 76%; --tt-warning-surface: 38 30% 21%;
+  --tt-danger-surface: 0 30% 23%; --tt-shadow: 0 16px 44px -12px #0008;
+  --tt-data-1: 223 100% 77%; --tt-data-2: 12 90% 68%; --tt-data-3: 173 60% 65%; --tt-data-4: 266 90% 78%;
+  color-scheme: dark;
+}
+
+/* وضع النظام يقرأه CSS قبل hydration؛ نسخة القيم تُولّد من كتلة الداكن في البناء. */
