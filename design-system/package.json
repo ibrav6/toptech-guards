@@ -1,0 +1,91 @@
+{
+  "name": "@toptech/ui",
+  "version": "0.1.0",
+  "description": "نظام واجهات قمم التقنية — العربية أولاً",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist",
+    "README.md",
+    "THIRD_PARTY.md",
+    "public/brand"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./tokens.css": "./dist/tokens.css"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && node scripts/copy-tokens.mjs",
+    "build:gallery": "vite build",
+    "preview": "vite preview --host 127.0.0.1 --port 4178 --strictPort",
+    "storybook": "storybook dev -p 6008 --host 127.0.0.1",
+    "build:storybook": "storybook build --disable-telemetry",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src gallery tests scripts *.ts .storybook",
+    "test": "playwright test --project=chromium --project=firefox --project=webkit",
+    "test:visual": "node scripts/visual.mjs",
+    "test:update": "node scripts/visual.mjs --update",
+    "perf": "node scripts/performance.mjs",
+    "check:design": "npm run build && npm run verify:consumer && npm run typecheck && npm run lint && npm run build:gallery && npm run build:storybook && npm test && npm run test:visual && npm run perf",
+    "prepack": "npm run build",
+    "verify:consumer": "node scripts/check-consumer.mjs"
+  },
+  "dependencies": {
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "tailwind-merge": "2.6.0",
+    "lucide-react": "0.468.0",
+    "@radix-ui/react-direction": "1.1.4",
+    "@radix-ui/react-slot": "1.3.3",
+    "@radix-ui/react-label": "2.1.15",
+    "@radix-ui/react-separator": "1.1.15",
+    "@radix-ui/react-dialog": "1.1.23",
+    "@radix-ui/react-dropdown-menu": "2.1.24",
+    "@radix-ui/react-popover": "1.1.23",
+    "@radix-ui/react-select": "2.3.7",
+    "@radix-ui/react-tabs": "1.1.21",
+    "@radix-ui/react-checkbox": "1.3.11",
+    "@radix-ui/react-switch": "1.3.7",
+    "@radix-ui/react-tooltip": "1.2.16",
+    "@radix-ui/react-accordion": "1.2.20",
+    "@radix-ui/react-alert-dialog": "1.1.23"
+  },
+  "devDependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@types/react": "19.0.7",
+    "@types/react-dom": "19.0.3",
+    "@types/node": "22.10.7",
+    "typescript": "5.7.3",
+    "vite": "6.4.3",
+    "@vitejs/plugin-react": "4.7.0",
+    "tsup": "8.5.1",
+    "tailwindcss": "3.4.17",
+    "tailwindcss-animate": "1.0.7",
+    "postcss": "8.4.49",
+    "autoprefixer": "10.4.20",
+    "storybook": "10.6.0",
+    "@storybook/react-vite": "10.6.0",
+    "@storybook/addon-docs": "10.6.0",
+    "@storybook/addon-a11y": "10.6.0",
+    "@playwright/test": "1.63.0",
+    "@axe-core/playwright": "4.13.0",
+    "@lhci/cli": "0.15.1",
+    "@fontsource/ibm-plex-sans-arabic": "5.3.0",
+    "eslint": "9.39.5",
+    "typescript-eslint": "8.70.0",
+    "eslint-plugin-react-hooks": "7.1.1"
+  }
+}

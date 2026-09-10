@@ -1,0 +1,14 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { Brand, BrandMark, StatusBadge } from '@toptech/ui';
+import { ButtonExamples, FormExamples, OverlayExamples, NavigationExamples, StateExamples, TableExample, CardExample } from './examples';
+const meta = { title: 'الأساس/المكوّنات', parameters: { docs: { description: { component: 'المرجع الحي لمكوّنات قمم. بدّل الاتجاه والمظهر من شريط الأدوات، وجرّب لوحة المفاتيح والجوال.' } } }, tags: ['autodocs'] } satisfies Meta;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export const Buttons: Story = { name: 'الأزرار وحالاتها', render: () => <ButtonExamples/> };
+export const Fields: Story = { name: 'الحقول والتحقق', render: () => <FormExamples/> };
+export const Overlays: Story = { name: 'القوائم والنوافذ المتداخلة', render: () => <OverlayExamples/> };
+export const Navigation: Story = { name: 'التبويبات والتفاصيل', render: () => <NavigationExamples/> };
+export const States: Story = { name: 'حالات البيانات', render: () => <StateExamples/> };
+export const Table: Story = { name: 'جدول بيانات عربي', render: () => <TableExample/> };
+export const Card: Story = { name: 'البطاقة', render: () => <CardExample/> };
+export const Identity: Story = { name: 'العلامة والدلالات', render: () => <div className="grid gap-8"><Brand/><BrandMark width={96} height={96}/><div className="flex flex-wrap gap-3"><StatusBadge tone="success">اكتمل</StatusBadge><StatusBadge tone="warning">مراجعة</StatusBadge><StatusBadge tone="danger">خطأ</StatusBadge><StatusBadge>غير معروف</StatusBadge></div></div> };
