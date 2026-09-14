@@ -28,7 +28,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsup && tailwindcss -i src/styles.css -o dist/styles.css --minify && node scripts/copy-tokens.mjs",
-    "build:gallery": "vite build",
+    "build:gallery": "vite build && node scripts/prerender.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 4178 --strictPort",
     "storybook": "storybook dev -p 6008 --host 127.0.0.1",
     "build:storybook": "storybook build --disable-telemetry",
