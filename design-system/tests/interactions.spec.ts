@@ -1,5 +1,30 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+
+test('قالب التفاصيل يحصر الجدول العريض داخل منطقة تمريره', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#patterns');
+  await page.getByRole('tab', { name: 'تفاصيل', exact: true }).click();
+  const content = page.locator('.tt-detail-content');
+  await content.evaluate(node => {
+    const section = document.createElement('section');
+    const region = document.createElement('div');
+    region.id = 'wide-table-contract';
+    region.style.overflowX = 'auto';
+    const table = document.createElement('table');
+    table.style.minWidth = '1200px';
+    table.insertRow().insertCell().textContent = 'جدول طويل لا ينبغي أن يمدد قالب التفاصيل';
+    region.append(table);
+    section.append(region);
+    node.replaceChildren(section);
+  });
+  const bounds = await content.boundingBox();
+  const size = await page.locator('#wide-table-contract').evaluate(node => ({ width: node.clientWidth, scroll: node.scrollWidth }));
+  expect(size.width).toBeLessThanOrEqual(bounds!.width + 1);
+  expect(size.scroll).toBeGreaterThan(size.width);
+  await page.locator('#wide-table-contract').evaluate(node => { node.scrollLeft = -300; });
+  expect(await page.locator('#wide-table-contract').evaluate(node => Math.abs(node.scrollLeft))).toBeGreaterThan(0);
+});
 async function visibleWithin(page: Page, locator: Locator) {
   await expect(locator).toBeVisible();
   // Popper يضع العنصر خارج الشاشة قبل حساب الموضع؛ ننتظر النتيجة المستقرة لا إطار التركيب.
@@ -88,7 +113,13 @@ test('النقر خارج القائمة يغلقها، والأسهم تفتح 
  await expect(page.getByRole('menuitem',{name:'للقراءة فقط',exact:true})).toBeVisible();
  await page.getByRole('menuitem',{name:'للقراءة فقط',exact:true}).click();
  await expect(page.getByText('تم اختيار صلاحية القراءة')).toBeVisible();
- await page.getByRole('button',{name:'إجراءات المشروع',exact:true}).click(); await page.mouse.click(2,2);
+ await page.getByRole('button',{name:'إجراءات المشروع',exact:true}).click();
+ await expect(page.getByRole('menu')).toBeVisible();
+ // Radix يعطّل pointer-events خارج القائمة؛ نضغط موضع العنوان بعد
+ // ظهورها، لا زاوية الشاشة فور الفتح قبل تركيب مستمع النقر الخارجي.
+ const outside = await page.locator('h1').filter({hasText:'مكوّنات تتصرّف باتساق'}).boundingBox();
+ expect(outside).not.toBeNull();
+ await page.mouse.click(outside!.x + outside!.width / 2, outside!.y + outside!.height / 2);
  await expect(page.getByRole('menu')).toBeHidden();
 });
 test('الحالة الفارغة والخطأ يعرضان إجراء يمكن إكماله',async({page})=>{
