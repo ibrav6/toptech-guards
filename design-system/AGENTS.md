@@ -1,6 +1,7 @@
 # عقد مكتبة قمم
 
-اقرأ CLAUDE.md وdocs/AGENTS.md في جذر المستودع، ثم README.md هنا.
+اقرأ ../plugins/toptech-guards/CONSTITUTION.md وDESIGN_SYSTEM.md وREADME.md
+هنا. هذه مكتبة مستقلة؛ عقد المنتج المستهلك يُقرأ في مستودع المنتج نفسه.
 
 - المصدر الواحد للهوية الجديدة src/tokens.css؛ استعمل الدلالات لا قيم ألوان جديدة.
 - استخدم مكوّنات src/components/ui المبنية على shadcn/Radix. أي إضافة عامة

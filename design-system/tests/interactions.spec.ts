@@ -19,6 +19,10 @@ test('قالب التفاصيل يحصر الجدول العريض داخل من
     node.replaceChildren(section);
   });
   const bounds = await content.boundingBox();
+  // مقارنة الجدول بأبٍ متسع معه تعطي خضرة كاذبة؛ الحد الخارجي هو الشاشة.
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   const size = await page.locator('#wide-table-contract').evaluate(node => ({ width: node.clientWidth, scroll: node.scrollWidth }));
   expect(size.width).toBeLessThanOrEqual(bounds!.width + 1);
   expect(size.scroll).toBeGreaterThan(size.width);
