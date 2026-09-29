@@ -3,9 +3,13 @@ import { gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 const manifest = JSON.parse(readFileSync('package.json','utf8'));
-const web = path.resolve('../../web');
+const web = path.resolve(process.env.TT_CONSUMER_WEB || '../../web');
 // الحزمة قابلة للنقل؛ هذا السلك يخص مستهلك المناقصات عندما يكون حاضراً.
-if (!existsSync(path.join(web,'package.json'))) process.exit(0);
+if (!existsSync(path.join(web,'package.json'))) {
+ if (process.env.TT_CONSUMER_WEB) throw new Error('مسار المستهلك المحدد لا يحتوي package.json');
+ console.log('↷ لم يُفحص مستهلك: حدّد TT_CONSUMER_WEB لمسار التطبيق عند التسليم');
+ process.exit(0);
+}
 const consumer = JSON.parse(readFileSync(path.join(web,'package.json'),'utf8'));
 const dependency = consumer.dependencies?.['@toptech/ui'];
 if (!dependency?.startsWith('file:vendor/')) throw new Error('مستهلك الهوية لا يشير إلى الإصدار المحلي المثبّت');

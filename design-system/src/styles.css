@@ -86,6 +86,9 @@
 .tt-theme .tt-page-filters > * { flex: 1 1 12rem; min-width: 0; }
 .tt-theme .tt-detail-layout { display: grid; grid-template-columns: minmax(0,1fr); gap: 1.5rem; }
 .tt-theme .tt-detail-content, .tt-theme .tt-detail-aside { min-width: 0; display: grid; align-content: start; gap: 1.5rem; }
+/* جدول الكميات وسّع المسار الضمني إلى 2452px داخل عمود 358px؛
+   تصفير حد المسار يحصر التمرير في الجدول بدل قص بقية الصفحة. */
+.tt-theme .tt-detail-content { grid-template-columns: minmax(0, 1fr); }
 .tt-theme .tt-settings-page { max-width: 60rem; }
 .tt-theme .tt-settings-sections { display: grid; gap: 1.5rem; }
 .tt-theme .tt-settings-footer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; border-top: 1px solid hsl(var(--border)); padding-top: 1.5rem; }
