@@ -216,12 +216,14 @@ def main() -> None:
     #     التزاماتٍ حمراء دخلت master وأحدها منشور.
     if os.environ.get("TOPTECH_PROTECT_MASTER", "1") != "0":
         for part in _clauses(_strip_heredocs(cmd)):
-            if not re.search(r"git\s+push\b", part):
+            # ‼ و`git -C X push` دفعٌ أيضاً — كان يمرّ بلا فحصٍ أصلاً (طفرة 2026-10-13)
+            if not re.search(r"git\s+(?:-C\s+\S+\s+)?push\b", part):
                 continue
             explicit = re.search(r"\b(master|main)\b", part)
             # `git push` بلا فرعٍ مسمّى يدفع الفرع الحالي — فيُسأل git.
             implicit = (not re.search(r"\brefs/|\borigin\s+\S+", part)
-                        and _current_branch(data.get("cwd")) in ("master", "main"))
+                        and _current_branch(_push_dir(cmd, part, data.get("cwd")))
+                        in ("master", "main"))
             if explicit or implicit:
                 deny("⛔ الدفع المباشر إلى master مرفوض. افتح فرعاً وPR:\n"
                      "   git switch -c <اسمك>/<مهمتك> && git push -u origin HEAD\n"
@@ -251,6 +253,25 @@ def main() -> None:
             deny(f"⛔ {hit} داخل أمر كتابة. سرٌّ يدخل ملفاً يدخل git، "
                  "وسرٌّ يدخل git لا يخرج من التاريخ.\n"
                  "استبدله بقيمةٍ نائبة: <في secrets/…> أو ${VAR}.")
+
+
+def _push_dir(cmd: str, part: str, cwd: str | None) -> str | None:
+    """المجلّد الذي يدفع منه الأمر فعلاً: `git -C X` في شقّه، أو آخر
+    `cd X` قبله في الأمر — لا مجلّد الجلسة.
+
+    ‼ كاذبةٌ قِيست 2026-10-13: `cd ../worktree && git commit … && git push`
+      من جلسةٍ مجلّدها الشجرة المشتركة على الفرع الرئيس ⇒ مُنع دفعُ فرعٍ
+      سليم، وضاع الالتزام معه لأن الأمر كلّه رُفض.
+    """
+    base = os.path.expanduser(cwd or ".")
+    m = re.search(r"\bgit\s+-C\s+(\S+)", part)
+    if m:
+        return os.path.join(base, os.path.expanduser(m.group(1).strip("'\"")))
+    head = cmd[:cmd.find(part)] if part in cmd else ""
+    cds = re.findall(r"(?:^|[;&|]\s*)cd\s+(\S+)", head)
+    if cds:
+        return os.path.join(base, os.path.expanduser(cds[-1].strip("'\"")))
+    return cwd
 
 
 def _current_branch(cwd: str | None) -> str:

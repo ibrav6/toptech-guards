@@ -217,6 +217,88 @@ def check_executable() -> int:
     return fail
 
 
+def check_tree() -> tuple[int, int, int]:
+    """حارس الشجرة المشتركة (`guard_tree.py`) — يُقاس على مستودعٍ حقيقيّ
+    مؤقّت: master في الجذر وworktree على فرع، لأن الحارس يسأل git نفسه.
+
+    ‼ ومن حالات المرور ما وقع فعلاً: ملفٌّ اتّسخ قبل الأمر (جلسةٌ أخرى في
+      الشجرة نفسها) لا يُنسب إلى الأمر، وإلا صار كلُّ أمرٍ في الشجرة
+      المشتركة ممنوعاً بأثر غيره فيُطفأ الحارس.
+    """
+    import time
+    root = tempfile.mkdtemp(prefix="toptech-guards-tree-")
+    repo, wt = os.path.join(root, "repo"), os.path.join(root, "wt")
+    g = lambda *a, cwd=repo: subprocess.run(["git", "-C", cwd, *a], check=True,  # noqa: E731
+                                            capture_output=True, text=True)
+    os.makedirs(repo)
+    g("init", "-q", "-b", "master")
+    g("config", "user.email", "t@t"); g("config", "user.name", "t")
+    for name, body in (("a.txt", "a\n"), (".gitignore", "*.local\n")):
+        with open(os.path.join(repo, name), "w") as fh:
+            fh.write(body)
+    g("add", "."); g("commit", "-q", "-m", "init")
+    g("worktree", "add", "-q", "-b", "me/task", wt)
+
+    def w(path: str, env=None) -> bool:
+        out = run("guard_tree.py", {"cwd": repo, "hook_event_name": "PreToolUse",
+                                    "tool_name": "Edit", "tool_input": {"file_path": path}}, env)
+        return bool(out) and json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def bash(cwd: str, act, sid: str) -> bool:
+        base = {"cwd": cwd, "tool_name": "Bash", "session_id": "s", "tool_use_id": sid,
+                "tool_input": {"command": "x"}}
+        run("guard_tree.py", {**base, "hook_event_name": "PreToolUse"})
+        act()
+        out = run("guard_tree.py", {**base, "hook_event_name": "PostToolUse"})
+        return bool(out) and json.loads(out).get("decision") == "block"
+
+    def push(cwd: str, cmd: str) -> bool:
+        out = run("guard_bash.py", {"cwd": cwd, "tool_input": {"command": cmd}})
+        return bool(out) and json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+    def touch(path: str, mtime: float | None = None):
+        with open(path, "a") as fh:
+            fh.write("x\n")
+        if mtime:
+            os.utime(path, (mtime, mtime))
+
+    # جلسةٌ أخرى اتّسخت بملفٍّ قبل ساعة — قبل الأمر
+    touch(os.path.join(repo, "other.txt"), time.time() - 3600)
+    cases = [
+        ("Edit ملفٍ متتبَّع والفرع master", w(os.path.join(repo, "a.txt")), True),
+        ("Write ملفٍ جديد والفرع master", w(os.path.join(repo, "new/b.py")), True),
+        ("Edit ملفٍ متجاهَل على master — يمرّ", w(os.path.join(repo, "x.local")), False),
+        ("Edit في worktree على فرع — يمرّ", w(os.path.join(wt, "a.txt")), False),
+        ("Edit خارج أي مستودع — يمرّ", w(os.path.join(root, "notes.md")), False),
+        ("Edit على master والحماية مطفأة — يمرّ",
+         w(os.path.join(repo, "a.txt"), {"TOPTECH_PROTECT_MASTER": "0"}), False),
+        ("Bash يكتب ملفاً على master", bash(repo, lambda: touch(os.path.join(repo, "c.sh")), "1"), True),
+        ("Bash يعدّل متتبَّعاً على master", bash(repo, lambda: touch(os.path.join(repo, "a.txt")), "2"), True),
+        ("Bash بلا أثر على master — يمرّ", bash(repo, lambda: None, "3"), False),
+        ("Bash وملفٌ اتّسخ قبله بيد غيره — يمرّ", bash(repo, lambda: None, "4"), False),
+        ("Bash يكتب في worktree على فرع — يمرّ",
+         bash(wt, lambda: touch(os.path.join(wt, "d.txt")), "5"), False),
+        # ── حارس الدفع يقرأ مجلّد الأمر لا مجلّد الجلسة (كاذبة 2026-10-13) ──
+        ("دفعٌ ضمنيّ والجلسة على الفرع الرئيس", push(repo, "git push -q"), True),
+        ("cd إلى worktree ثم دفعٌ ضمنيّ — يمرّ", push(repo, f"cd {wt} && git push -q"), False),
+        ("git -C worktree ثم دفعٌ ضمنيّ — يمرّ", push(repo, f"git -C {wt} push -q"), False),
+        ("الجلسة في worktree وcd إلى الرئيس ثم دفع", push(wt, f"cd {repo} && git push"), True),
+        ("الجلسة في worktree وgit -C إلى الرئيس ثم دفع", push(wt, f"git -C {repo} push"), True),
+    ]
+    b = p = f = 0
+    for desc, got, want in cases:
+        ok = got == want
+        print(f"  {'✔' if ok else '✘'} {'مُنع' if got else 'مرّ '}  {desc}")
+        if not ok:
+            f += 1
+            print(f"       المتوقّع: {'منع' if want else 'مرور'}")
+        elif want:
+            b += 1
+        else:
+            p += 1
+    return b, p, f
+
+
 def main() -> int:
     blocked = passed = fail = 0
     fail += check_executable()
@@ -242,6 +324,9 @@ def main() -> int:
             blocked += 1
         else:
             passed += 1
+
+    tb, tp, tf = check_tree()
+    blocked, passed, fail = blocked + tb, passed + tp, fail + tf
 
     print("\n" + "═" * 62)
     print(f"مُنع {blocked} · مرّ {passed} · فشل {fail}")
