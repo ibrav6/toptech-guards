@@ -34,6 +34,7 @@ BARE = tempfile.mkdtemp(prefix="toptech-guards-bare-")     # مشروعٌ بلا
 
 # (الوصف، السكربت، المدخل، أيُمنع؟)
 from cases_clauses import CLAUSE_CASES  # noqa: E402
+from cases_merge import check_merge  # noqa: E402
 
 CASES = [
     # ── دهس الإنتاج ──────────────────────────────────────────────
@@ -327,6 +328,8 @@ def main() -> int:
 
     tb, tp, tf = check_tree()
     blocked, passed, fail = blocked + tb, passed + tp, fail + tf
+    mb, mp, mf = check_merge(run)
+    blocked, passed, fail = blocked + mb, passed + mp, fail + mf
 
     print("\n" + "═" * 62)
     print(f"مُنع {blocked} · مرّ {passed} · فشل {fail}")
