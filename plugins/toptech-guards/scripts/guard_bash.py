@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -222,7 +223,7 @@ def main() -> None:
             explicit = re.search(r"\b(master|main)\b", part)
             # `git push` بلا فرعٍ مسمّى يدفع الفرع الحالي — فيُسأل git.
             implicit = (not re.search(r"\brefs/|\borigin\s+\S+", part)
-                        and _current_branch(_push_dir(cmd, part, data.get("cwd")))
+                        and _current_branch(_cmd_dir(cmd, part, data.get("cwd")))
                         in ("master", "main"))
             if explicit or implicit:
                 deny("⛔ الدفع المباشر إلى master مرفوض. افتح فرعاً وPR:\n"
@@ -255,9 +256,10 @@ def main() -> None:
                  "استبدله بقيمةٍ نائبة: <في secrets/…> أو ${VAR}.")
 
 
-def _push_dir(cmd: str, part: str, cwd: str | None) -> str | None:
-    """المجلّد الذي يدفع منه الأمر فعلاً: `git -C X` في شقّه، أو آخر
-    `cd X` قبله في الأمر — لا مجلّد الجلسة.
+def _cmd_dir(cmd: str, part: str, cwd: str | None) -> str | None:
+    """المجلّد الذي يعمل فيه الأمر فعلاً: `git -C X` في شقّه، أو آخر
+    `cd X` قبله في الأمر — لا مجلّد الجلسة. يقرؤه حارس الدفع (أيُّ فرعٍ
+    يُدفع) وحارس الدمج (أيُّ مستودعٍ يسأل فيه gh).
 
     ‼ كاذبةٌ قِيست 2026-10-13: `cd ../worktree && git commit … && git push`
       من جلسةٍ مجلّدها الشجرة المشتركة على الفرع الرئيس ⇒ مُنع دفعُ فرعٍ
@@ -284,6 +286,72 @@ def _current_branch(cwd: str | None) -> str:
         return ""
 
 
+# أعلامُ الدمج التي تأخذ قيمة — تُتخطّى قيمتُها وإلا قُرئت مرجعَ الـPR
+_MERGE_VALUE_FLAGS = ("-t", "--subject", "-b", "--body", "-F", "--body-file",
+                      "-A", "--author-email", "--match-head-commit")
+# ختمُ الشجرة الخضراء: وظيفةٌ في CI المشروع تكتبه على رأس الـPR بعد أن
+# تخضرّ الفحوص، ووصفُه شجرةُ الدمج التجريبي الذي فحصته (tenders-platform
+# منذ #610). ولا يُقبل إلا من `github-actions` — ختمٌ يكتبه غيرُه لا يشهد.
+TREE_STAMP = "ci/tree"
+STAMP_BOT = "github-actions[bot]"
+
+
+class _GhError(Exception):
+    pass
+
+
+def _gh(args: list[str], cwd: str | None = None, env: dict | None = None):
+    # ‼ مهلةٌ لكلّ نداء كي تبقى النداءات الخمسة تحت مهلة الـhook (40ث)؛
+    #   والنداء ~2ث (قِيس 2026-10-15)، والحارس كلّه 2–8ث على PRات حيّة.
+    try:
+        p = subprocess.run(["gh", *args], capture_output=True, text=True, timeout=7,
+                           cwd=cwd or None, env={**os.environ, **(env or {})})
+    except Exception as exc:                      # noqa: BLE001
+        raise _GhError(f"تعذّر سؤال GitHub: {exc}") from None
+    if p.returncode != 0:
+        raise _GhError((p.stderr or p.stdout).strip()[:200])
+    try:
+        return json.loads(p.stdout)
+    except json.JSONDecodeError:
+        raise _GhError("ردّ gh ليس JSON — لا يُدمج على حكمٍ مشكوك.") from None
+
+
+def _merge_target(cmd: str, cwd: str | None) -> tuple[list[str], str | None, dict] | None:
+    """ما يعيّن الـPR **كما يعيّنه gh نفسه**: (وسائط `gh pr view`، مجلّده، بيئته)،
+    أو `None` إن لم يكن الدمج أمراً صريحاً في شقّه.
+
+    ‼ قِيس 2026-09-04 و09-15 (#3): كان الحارس يلتقط الرقم وحده ويسأل عنه
+      في مجلّد الجلسة ويتجاهل `-R` — فحَكَم على فحوص tenders#2 والدمجُ في
+      FAED#2. لو كان ذاك أخضر لمرّ دمجٌ أحمر. فيُقرأ ما يقرؤه gh: الرابط،
+      و`-R`/`--repo`، و`GH_REPO=` قبل الأمر، ومجلّد الأمر (`cd X &&`).
+    ‼ و`None` لا تخمين: الدمج داخل نصٍّ مقتبس (`ssh h "…"` · `bash -c '…'`)
+      لا يُعرف مجلّده ولا مستودعه، والسؤال عن فرع الجلسة يحكم على PR آخر.
+    """
+    part = next((c for c in _clauses(cmd) if re.search(r"\bgh\s+pr\s+merge\b", c)), cmd)
+    try:
+        toks = shlex.split(part)
+    except ValueError:
+        toks = part.split()
+    at = next((i for i in range(len(toks) - 2)
+               if toks[i:i + 3] == ["gh", "pr", "merge"]), None)
+    if at is None:
+        return None
+    env = dict(t.split("=", 1) for t in toks[:at] if re.fullmatch(r"GH_(?:REPO|HOST)=\S*", t))
+    ref = repo = None
+    rest = iter(toks[at + 3:])
+    for t in rest:
+        if t in ("-R", "--repo"):
+            repo = next(rest, None)
+        elif t.startswith("--repo=") or (t.startswith("-R") and len(t) > 2):
+            repo = t.split("=", 1)[1] if "=" in t else t[2:]
+        elif t in _MERGE_VALUE_FLAGS:
+            next(rest, None)
+        elif not t.startswith("-") and ref is None:
+            ref = t
+    return ([ref] if ref else []) + (["--repo", repo] if repo else []), \
+        _cmd_dir(cmd, part, cwd), env
+
+
 def _merge_refusal(cmd: str, cwd: str | None) -> str | None:
     """سببُ رفض `gh pr merge`، أو `None` إن كان الدمج مستوفياً.
 
@@ -291,27 +359,46 @@ def _merge_refusal(cmd: str, cwd: str | None) -> str | None:
     سيُرفض: كل الفحوص خضراء · ولا `--admin` (تجاوزٌ للحماية) · وموافقةُ
     المالك على PR غيره **إن اشترطها عقد المشروع** (`require_approval`).
     قرار 2026-09-02 لمنصة المناقصات: المطوّر يدمج بلا موافقة، CI هو الحكم.
+    وقاعدتُه الفرعُ الافتراضي · وشجرتُه هي ما فحصه CI (`_untested_tree`).
     """
     if re.search(r"\s--admin\b", cmd):
         return "⛔ `--admin` يتخطّى الفحوص — الدمج بشروطه أو لا يُدمج."
     if not shutil.which("gh"):
         return ("⛔ لا `gh` هنا فلا يُقرأ حكم CI ولا الموافقة — ثبّته "
                 "وسجّل دخوله. العجز رفضٌ لا تخطٍّ.")
-    m = re.search(r"gh\s+pr\s+merge\s+((?:[^-\s]|-(?=\s))\S*)", cmd)
-    ref = [m.group(1)] if m else []
+    target = _merge_target(cmd, cwd)
+    if target is None:
+        return ("⛔ لا يُعرف أيُّ PR يُدمج: الدمج ليس أمراً صريحاً في شقّه "
+                "(داخل نصٍّ مقتبس أو `ssh`/`bash -c`).\n"
+                "   المخرج: اكتبه أمراً مستقلاً بالرابط الكامل. وإن كان نصّاً يصف "
+                "الحارس فاكتبه في ملفٍ بـWrite ومرّره بـ`--body-file`.")
+    args, where, env = target
     try:
-        p = subprocess.run(
-            ["gh", "pr", "view", *ref, "--json",
-             "author,reviewDecision,statusCheckRollup,state,baseRefName"],
-            capture_output=True, text=True, timeout=30, cwd=cwd or None)
-    except Exception as exc:                      # noqa: BLE001
-        return f"⛔ تعذّر سؤال GitHub عن الـPR: {exc}"
-    if p.returncode != 0:
-        return f"⛔ تعذّر قراءة الـPR: {(p.stderr or p.stdout).strip()[:200]}"
-    try:
-        pr = json.loads(p.stdout)
-    except json.JSONDecodeError:
-        return "⛔ ردّ gh ليس JSON — لا يُدمج على حكمٍ مشكوك."
+        pr = _gh(["pr", "view", *args, "--json", "url,author,reviewDecision,"
+                  "statusCheckRollup,state,baseRefName,headRefOid"], where, env)
+        m = re.match(r"https://[^/]+/([^/]+/[^/]+)/pull/(\d+)", pr.get("url") or "")
+        if not m:
+            return f"⛔ رابط الـPR غير مفهوم ({pr.get('url')!r}) — لا يُدمج ما لا يُعرف مستودعه."
+        repo, num = m.groups()
+        api = _gh(["api", f"repos/{repo}/pulls/{num}"], env=env)
+    except _GhError as exc:
+        return f"⛔ تعذّر قراءة الـPR: {exc}"
+
+    # ‼ قاعدةٌ غير الافتراضي لا تصل الإنتاج — قِيس 2026-10-15: tenders#656
+    #   دُمج في `claude/fit-v2` (فرعٌ دُمج قبله) فلم يصل master ونُقل بيده
+    #   في #666. وقبله #117 (2026-09-22) في فرعٍ أُغلق PRُّه بلا دمج: دمجان
+    #   من 423 في تاريخ المنصة كلّه بقاعدةٍ أخرى، **وكلاهما ضاع**.
+    base = pr.get("baseRefName") or ""
+    default = ((api.get("base") or {}).get("repo") or {}).get("default_branch") or ""
+    if not default or base != default:
+        return (f"⛔ قاعدة الـPR `{base}` ليست الفرع الافتراضي `{default or '?'}` — "
+                "دمجُه لا يصل الفرع الافتراضي ولا الإنتاج.\n"
+                f"   المخرج: gh pr edit {pr['url']} --base {default or '<الافتراضي>'}\n"
+                "   ثم انتظر CI (شجرة الدمج تتغيّر) وادمج. وإن كان مكدَّساً على PR "
+                "آخر: ادمج ذاك أوّلاً ثم غيّر القاعدة.\n"
+                "قِيس 2026-10-15: tenders#656 دُمج في فرعٍ مدموجٍ قبله فلم يصل "
+                "master؛ والدمجان الوحيدان بقاعدةٍ أخرى في تاريخ المنصة ضاعا كلاهما.")
+
     bad = []
     for c in pr.get("statusCheckRollup") or []:
         verdict = (c.get("conclusion") or c.get("state") or "").upper()
@@ -327,7 +414,60 @@ def _merge_refusal(cmd: str, cwd: str | None) -> str | None:
             and pr.get("reviewDecision") != "APPROVED"):
         return (f"⛔ كاتب الـPR `{author}` ليس المالك، ولا Approve بعد "
                 f"(reviewDecision={pr.get('reviewDecision') or 'NONE'}).")
-    return None
+    return _untested_tree(repo, pr, api, env)
+
+
+def _untested_tree(repo: str, pr: dict, api: dict, env: dict) -> str | None:
+    """أفَحَص CI **الشجرةَ التي ستدخل** القاعدة الآن؟ شجرةُ الدمج التجريبي
+    الحالي مقابل أختام `ci/tree` الخضراء على رأس الـPR.
+
+    ‼ قِيس 2026-10-15: PRان أخضران كلٌّ وحده أخذا الترحيل `0138`، فبقي
+      master أحمر 13:10–13:25 بلا نشر. وفي أسبوع 10-08..10-15: 46 من 105
+      دمجات (44٪) دخلت بشجرةٍ لم تُفحص، وجولتا master الحمراوان كلتاهما
+      بعد دمجٍ منها. والرفضُ لا يزيد CI: الدمجُ المتقادم يُفحص كاملاً على
+      master اليوم (`reuse` يخطئ)، فالمنعُ ينقل الجولة نفسها (وسيطها 2.7 د)
+      إلى ما قبل الدمج حيث يُحمِّر الـPR لا master.
+
+    ‼ و`merge_commit_sha` وحده يكذب: قِيس 2026-10-15 على tenders#676 أن
+      GitHub أبقاه على قاعدةٍ قديمة (`mergeable_state=clean`) بعد أن تقدّم
+      master، ولم يُعِد حسابه بالقراءة المتكرّرة — وختمُه يطابق شجرتَه
+      القديمة. فيُشترط أن يكون أبواه **رأسَ القاعدة الآن** ورأسَ الـPR.
+
+    بلا ختمٍ أصلاً لا رأي: المستودع لا يختم (حارسٌ عامّ، والختم عقدُ مشروع).
+    """
+    head, base, url = pr.get("headRefOid") or "", pr.get("baseRefName") or "", pr["url"]
+    try:
+        stamps = {s.get("description") for s in
+                  _gh(["api", f"repos/{repo}/commits/{head}/statuses?per_page=100"], env=env)
+                  if s.get("context") == TREE_STAMP and s.get("state") == "success"
+                  and (s.get("creator") or {}).get("login") == STAMP_BOT}
+        if not stamps:
+            return None
+        merge = api.get("merge_commit_sha")
+        commit = _gh(["api", f"repos/{repo}/git/commits/{merge}"], env=env) if merge else {}
+        tip = _gh(["api", f"repos/{repo}/git/ref/heads/{base}"], env=env)["object"]["sha"]
+    except (_GhError, KeyError, TypeError) as exc:
+        return f"⛔ تعذّر التحقّق من شجرة الدمج: {exc}"
+    parents = [p.get("sha") for p in commit.get("parents") or []]
+    tree = (commit.get("tree") or {}).get("sha")
+    if parents == [tip, head] and tree in stamps:
+        return None
+    if not merge:
+        why = "لا دمج تجريبي عند GitHub (تعارض؟)"
+    elif parents[:1] != [tip]:
+        why = (f"تقدّم `{base}` إلى {tip[:8]} بعد آخر دمجٍ تجريبي "
+               f"(على {(parents or ['?'])[0][:8]})")
+    elif parents[1:] != [head]:
+        why = "الدمج التجريبي لرأسٍ أقدم من رأس الـPR"
+    else:
+        why = f"شجرة الدمج {str(tree)[:8]} بلا ختمٍ أخضر (المختوم: {', '.join(sorted(s[:8] for s in stamps if s))})"
+    return (f"⛔ CI لم يفحص الشجرة التي ستدخل `{base}`: {why}.\n"
+            "   الأخضر على الـPR فحصَ دمجاً على قاعدةٍ أقدم، ودمجٌ دخل بينهما "
+            "قد يصطدم به وكلاهما أخضر.\n"
+            f"   المخرج: gh pr update-branch {url}  ثم الدمج حين يخضرّ CI.\n"
+            "   ‼ و«Re-run» للجولة نفسها لا يكفي: يعيد فحص الدمج التجريبي القديم بعينه.\n"
+            "قِيس 2026-10-15: PRان أخضران كلٌّ وحده أخذا الترحيل 0138 فاحمرّ "
+            "master ربع ساعة بلا نشر.")
 
 
 def _secret_in(cmd: str) -> str | None:
